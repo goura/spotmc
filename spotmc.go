@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/pivotal-golang/archiver/compressor"
 	"github.com/pivotal-golang/archiver/extractor"
-	"golang.org/x/sys/unix"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -260,13 +259,12 @@ func Main() {
 		d := time.Duration(smc.maxIdleTime) * time.Second
 		for true {
 			time.Sleep(d / 12)
-			var st unix.Stat_t
-			err := unix.Stat(fullPath, &st)
+			fi, err := os.Stat(fullPath)
 			if err != nil {
-				log.Printf("syscall.Stat failed(%s): %s", fullPath, err)
+				log.Printf("os.Stat failed(%s): %s", fullPath, err)
 				continue
 			}
-			mtime := time.Unix(st.Mtimespec.Sec, 0)
+			mtime := fi.ModTime()
 			log.Printf("time.Since(mtime): %.2f minutes (%s)",
 				time.Since(mtime).Minutes(), fullPath)
 			if time.Since(mtime) > d {
