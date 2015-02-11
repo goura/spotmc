@@ -19,6 +19,7 @@ var JAR_PATH_DIR = ""
 var JAR_PATH_PREFIX = "mcjar"
 var DATA_PATH_DIR = ""
 var DATA_PATH_PREFIX = "mcdata"
+var AWS_RETRY = 3
 
 // Defaults
 var DEFAULT_REGION = "ap-northeast-1"
@@ -308,11 +309,18 @@ func Main() {
 				// If the game server ends, the instance dies
 				loop = false
 				smc.KillInstance()
+				break
 			}
 			if msg == "shutdown_cluster" {
 				if smc.autoScalingGroup != "" {
 					log.Printf("setting cluster capacity to 0")
-					setDesiredCapacity(smc.autoScalingGroup, 0)
+					for i := 0; i < AWS_RETRY; i++ {
+						err := setDesiredCapacity(smc.autoScalingGroup, 0)
+						if err == nil {
+							break
+						}
+					}
+					log.Fatal("setDesiredCapacity Failed!")
 				}
 				log.Printf("killing the game server")
 				cmd.Process.Kill()
