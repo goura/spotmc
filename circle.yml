@@ -1,3 +1,3 @@
-general:
-  artifacts:
-    - ${GOPATH}/spotmc
+test:
+  post:
+    - go get github.com/goura/spotmc/spotmc; cp /home/ubuntu/.go_project/bin/spotmc ${CIRCLE_ARTIFACTS}
