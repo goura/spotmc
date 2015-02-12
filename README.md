@@ -1,3 +1,5 @@
+[![Circle CI](https://circleci.com/gh/goura/spotmc.svg?style=svg)](https://circleci.com/gh/goura/spotmc)
+
 SpotMC
 =======
 SpotMC is a utility to host a craftbukkit/minecraft-server type games on an AWS EC2 spot instance.
