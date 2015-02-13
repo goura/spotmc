@@ -1,6 +1,6 @@
 SpotMC
 =======
-SpotMC is a utility to host a craftbukkit/minecraft-server type games on an AWS EC2 spot instance.
+SpotMC is a utility to host a craftbukkit/minecraft_server type games on an AWS EC2 spot instance.
 
 Using SpotMC, you might be able to:
 * Start your game server on a spot instance, which is very cheap in price
@@ -21,7 +21,7 @@ and I'm now trying to port it into a more solid something (to learn Go).
 What You Have to Prepare
 =========================
 - Access to AWS Management Console. You are going to setup an AutoScaling group. Game state will be saved in S3.
-- Game server jar file (like craftbukkit.jar/minecraft-server.jar) and its eula.txt (for minecraft). It's not included in this software.
+- Game server jar file (like craftbukkit.jar/minecraft_server.jar) and its eula.txt (for minecraft). It's not included in this software.
 
 Parameters
 ===========
