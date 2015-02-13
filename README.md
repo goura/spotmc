@@ -37,28 +37,39 @@ spotmc command uses env vars for configuration
     * Specify the URL of the eula.txt file in `s3://{bucket}/{key}` format
 
 * `SPOTMC_DATA_URL` (mandatory)
-    * Specify the path where you like to save the data in `s3://{bucket}/{key}` format.
-	  Currently spotmc saves the data as a single tgz file.
+    * Specify the path where you like to save the data in `s3://{bucket}/{key}` format. Currently spotmc saves the data as a single tgz file.
 
 * `SPOTMC_JAVA_PATH` (mandatory)
     * Specify the full path to java cmd (like `/usr/bin/java`).
 
-* `SPOTMC_JAVA_ARGS`
+* `SPOTMC_JAVA_ARGS` (default=none)
     * Extra args to give to java cmd, like `-Xmx1024M -Xms1024M`
 
-* `SPOTMC_MAX_IDLE_TIME` 
-    * The time which after everyone logs out from the server, spotmc tries to terminate the instance.
-	  Specify this in seconds. Default is 14400 seconds.
+* `SPOTMC_MAX_IDLE_TIME` (default=14400)
+    * The time which after everyone logs out from the server, spotmc tries to terminate the instance. Specify this in seconds.
 
-* `SPOTMC_MAX_UPTIME`
-    * The time after which no matter whether someone is still playing or not, the server will terminate. Specify this in seconds. Default is 43200 seconds.
+* `SPOTMC_MAX_UPTIME` (default=43200)
+    * The time after which no matter whether someone is still playing or not, the server will terminate. Specify this in seconds.
 
-* `SPOTMC_IDLE_WATCH_PATH`
+* `SPOTMC_IDLE_WATCH_PATH` (default="world/playerdata")
+    * The directory, relative to game data root, to watch for the game activity. If the specified path is inactive (i.e. doesn't get updated) for `SPOTMC_MAX_IDLE_TIME`, spotmc tries to shutdown the cluster specified in `SPOTMC_AUTOSCALING_GROUP`.
 
-* `SPOTMC_DDNS_UPDATE_URL`
+
+* `SPOTMC_DDNS_UPDATE_URL` (default=none)
     * When spotmc starts, it accesses this URL. Use it to update your DDNS settings.
+    * If this parameter is not specified, spotmc won't do anything.
 
-* `SPOTMC_AUTOSCALING_GROUP`
-    * When spotmc decides to shutdown, it shutdowns the autoscaling group. Specify the name of the group.
+* `SPOTMC_AUTOSCALING_GROUP` (default=none)
+    * When spotmc decides to shutdown the whole cluster, it tries to shutdown the autoscaling group. Specify the name of the group.
+    * If this paramter is not specified, spotmc won't touch the autoscaling group.
 
-* `SPOTMC_AWS_REGION`
+* `SPOTMC_AWS_REGION` (default="ap-northeast-1")
+    * Which AWS region to use
+
+* `SPOTMC_KILL_INSTANCE_MODE` (default="false")
+    * spotmc tries to kill the instance when the game server goes down for some reason, or when it detected the spot instance termination notification
+    * When this parameter is set to "false" it will not actually shutdown the instance. This is just for safety not to casually kill your server.
+    * When this parameter is set to "shutdown" it will call `SPOTMC_SHUTDOWN_CMD` to kill the instance. This is a recommended parameter.
+
+* `SPOTMC_SHUTDOWN_CMD` (default="/sbin/shutdown -h now")
+    * The command called when spotmc is killing the instance
