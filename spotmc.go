@@ -237,7 +237,7 @@ func (smc *SpotMC) KillInstance() error {
 	if smc.killInstanceMode == "shutdown" {
 		cmdArgs := strings.Split(smc.shutdownCommand, " ")
 		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-		err := cmd.Wait()
+		err := cmd.Run()
 		return err
 	}
 
