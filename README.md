@@ -42,7 +42,7 @@ Sample User Data
 ==================
 ```
 #!/bin/bash
-export SPOTMC_DDNS_UPDATE_URL 'http://XXXXXXXX:XXXXXXX@dynupdate.no-ip.com/nic/update?hostname=XXXXXXXX.no-ip.org'
+export SPOTMC_DDNS_UPDATE_URL='http://XXXXXXXX:XXXXXXX@dynupdate.no-ip.com/nic/update?hostname=XXXXXXXX.no-ip.org'
 export SPOTMC_SERVER_JAR_URL=s3://XXXXXXXX/minecraft_server.1.8.1.jar
 export SPOTMC_SERVER_EULA_URL=s3://XXXXXXXX/eula.txt
 export SPOTMC_DATA_URL=s3://XXXXXXXX/data.tgz
