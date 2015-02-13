@@ -196,6 +196,7 @@ func (smc *SpotMC) updateDDNS() {
 	if smc.ddnsURL != "" {
 		log.Printf("issuing DDNS update query")
 		resp, err := http.Get(smc.ddnsURL)
+		resp.Body.Close()
 		if err != nil {
 			log.Printf("DDNS update query failed: %s", err)
 		} else {

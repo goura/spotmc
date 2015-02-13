@@ -93,6 +93,7 @@ func Main() {
 		for {
 			time.Sleep(d)
 			resp, err := http.Get(TERMINATION_TIME_URL)
+			resp.Body.Close()
 			log.Printf("termination time url: %s (err:%s)", resp.Status, err)
 			// 404 means termination is not scheduled,
 			// 200 means termination is scheduled
