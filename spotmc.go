@@ -11,16 +11,17 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 )
 
+var AWS_RETRY = 3
 var JAR_PATH_DIR = ""
 var JAR_PATH_PREFIX = "mcjar"
 var DATA_PATH_DIR = ""
 var DATA_PATH_PREFIX = "mcdata"
-var AWS_RETRY = 3
 
 // Defaults
+var DEFAULT_KILL_INSTANCE_MODE = "false"
+var DEFAULT_SHUTDOWN_CMD = "/sbin/shutdown -h now"
 var DEFAULT_REGION = "ap-northeast-1"
 var DEFAULT_MAX_UPTIME = 43200
 var DEFAULT_MAX_IDLE_TIME = 14400
@@ -35,24 +36,44 @@ type SpotMC struct {
 	serverPath       string
 	dataDirPath      string
 	ddnsURL          string
+	killInstanceMode string
 	maxIdleTime      int
 	maxUptime        int
+	shutdownCommand  string
 	idleWatchPath    string
 	autoScalingGroup string
 }
 
 func NewSpotMC() (*SpotMC, error) {
-	// Check environment variables
-	for _, k := range []string{"SPOTMC_SERVER_JAR_URL", "SPOTMC_SERVER_EULA_URL", "SPOTMC_DATA_URL", "SPOTMC_JAVA_PATH"} {
+	// Check mandatory environment variables
+	for _, k := range []string{
+		"SPOTMC_SERVER_JAR_URL",
+		"SPOTMC_SERVER_EULA_URL",
+		"SPOTMC_DATA_URL",
+		"SPOTMC_JAVA_PATH",
+	} {
 		s := os.Getenv(k)
 		if s == "" {
 			return nil, fmt.Errorf("set valid env vars")
 		}
 	}
 
-	// Uptime and IdleTime
+	// Kill instance mode
+	// "shutdown" or "false"
+	killInstanceMode := DEFAULT_KILL_INSTANCE_MODE
+	s := os.Getenv("SPOTMC_KILL_INSTANCE_MODE")
+	if s != "" {
+		killInstanceMode = s
+	}
+	shutdownCommand := DEFAULT_SHUTDOWN_CMD
+	s = os.Getenv("SPOTMC_SHUTDOWN_CMD")
+	if s != "" {
+		shutdownCommand = s
+	}
+
+	// Max uptime and max idle time
 	maxIdleTime := DEFAULT_MAX_IDLE_TIME
-	s := os.Getenv("SPOTMC_MAX_IDLE_TIME")
+	s = os.Getenv("SPOTMC_MAX_IDLE_TIME")
 	if s != "" {
 		i, err := strconv.Atoi(s)
 		if err == nil {
@@ -89,8 +110,10 @@ func NewSpotMC() (*SpotMC, error) {
 		JavaPath:         os.Getenv("SPOTMC_JAVA_PATH"),
 		JavaArgs:         os.Getenv("SPOTMC_JAVA_ARGS"),
 		ddnsURL:          ddnsURL,
+		killInstanceMode: killInstanceMode,
 		maxIdleTime:      maxIdleTime,
 		maxUptime:        maxUptime,
+		shutdownCommand:  shutdownCommand,
 		idleWatchPath:    idleWatchPath,
 		autoScalingGroup: autoScalingGroup,
 	}
@@ -202,127 +225,39 @@ func (smc *SpotMC) StartServer() (exec.Cmd, error) {
 	return cmd, err
 }
 
-func (smc *SpotMC) KillInstance() {
+func (smc *SpotMC) KillInstance() error {
 	log.Printf("KillInstance invoked")
-	log.Print("saving data to S3 started")
-	smc.putDataDir()
-	log.Print("saving data to S3 done")
-	// TODO: kill the instance
+	log.Printf("killInstanceMode: %s", smc.killInstanceMode)
+
+	if smc.killInstanceMode == "false" {
+		// False mode. Don't do anything
+		return nil
+	}
+
+	if smc.killInstanceMode == "shutdown" {
+		cmdArgs := strings.Split(smc.shutdownCommand, " ")
+		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+		err := cmd.Wait()
+		return err
+	}
+
+	return nil
 }
 
-func Main() {
-	// Initialize
-	smc, err := NewSpotMC()
-	if err != nil {
-		panic(err)
-	}
-
-	// Update DDNS
-	smc.updateDDNS()
-
-	// Get game server jar file
-	log.Printf("retrieving game server jar file")
-	_, err = smc.getJarFile()
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	log.Printf("game server path: %s", smc.serverPath)
-
-	// Get the data dir from S3
-	log.Printf("retrieving data directory")
-	_, err = smc.getDataDir()
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	log.Printf("data directory: %s", smc.dataDirPath)
-
-	// Run game server
-	log.Printf("starting the game server")
-	cmd, err := smc.StartServer()
-	if err != nil {
-		err = fmt.Errorf("game server did not start: %s", err)
-	}
-
-	msgs := make(chan string)
-
-	// Spawn watch proc
-	// This process shutdowns the *cluster* when there's a long idle time.
-	go func() {
-		grace := time.Minute * 10
-		log.Printf("idle watcher starts after %.2f mins", grace.Minutes())
-		time.Sleep(grace) // Wait for a grace period
-		log.Printf("idle watcher starting")
-
-		fullPath := smc.dataDirPath + "/" + smc.idleWatchPath
-		d := time.Duration(smc.maxIdleTime) * time.Second
-		for true {
-			time.Sleep(d / 12)
-			fi, err := os.Stat(fullPath)
-			if err != nil {
-				log.Printf("os.Stat failed(%s): %s", fullPath, err)
-				continue
-			}
-			mtime := fi.ModTime()
-			log.Printf("time.Since(mtime): %.2f minutes (%s)",
-				time.Since(mtime).Minutes(), fullPath)
-			if time.Since(mtime) > d {
-				log.Printf("idle time exceeded limit, shutdown the cluster")
+func (smc *SpotMC) ShutdownCluster() error {
+	log.Printf("ShutDownCluster invoked")
+	log.Printf("autoScalingGroup: %s", smc.autoScalingGroup)
+	var err error
+	if smc.autoScalingGroup != "" {
+		log.Printf("setting cluster capacity to 0")
+		for i := 0; i < AWS_RETRY; i++ {
+			log.Printf("failed to set cluster capacity, retrying...")
+			err = setDesiredCapacity(smc.autoScalingGroup, 0)
+			if err == nil {
 				break
 			}
 		}
-		msgs <- "shutdown_cluster"
-	}()
-
-	// Spawn another watch proc
-	// This process shutdowns the *cluster* when the process uptime exceeds
-	// the predefined limit.
-	go func() {
-		d := time.Duration(smc.maxUptime) * time.Second
-		time.Sleep(d)
-		log.Printf("uptime exceeded limit, shutdown the cluster")
-		msgs <- "shutdown_cluster"
-	}()
-
-	// Spawn yet another watch proc
-	// This process watches spot instance shutdown notification
-	// and kills the game server before the actual shutdown process starts
-	go func() {
-	}()
-
-	// Spawn yet yet another watch proc
-	// This process waits for the game server to end
-	go func() {
-		err = cmd.Wait()
-		log.Printf("game server process exited")
-		msgs <- "server_down"
-	}()
-
-	loop := true
-	for loop {
-		select {
-		case msg := <-msgs:
-			if msg == "server_down" {
-				// If the game server ends, the instance dies
-				loop = false
-				smc.KillInstance()
-				break
-			}
-			if msg == "shutdown_cluster" {
-				if smc.autoScalingGroup != "" {
-					log.Printf("setting cluster capacity to 0")
-					for i := 0; i < AWS_RETRY; i++ {
-						err := setDesiredCapacity(smc.autoScalingGroup, 0)
-						if err == nil {
-							break
-						}
-					}
-					log.Fatal("setDesiredCapacity Failed!")
-				}
-				log.Printf("killing the game server")
-				cmd.Process.Kill()
-			}
-		}
+		log.Fatal("setDesiredCapacity Failed!")
 	}
+	return err
 }
