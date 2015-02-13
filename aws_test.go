@@ -42,16 +42,16 @@ func TestPutGet(t *testing.T) {
 	f.Write([]byte("ABCDEFG"))
 	f.Close()
 
-	err = s3Put("s3://"+bucketName+"/foo/bar.txt", filePath1)
+	err = S3Put("s3://"+bucketName+"/foo/bar.txt", filePath1)
 	if err != nil {
-		t.Fatal("s3Put failed", err)
+		t.Fatal("S3Put failed", err)
 	}
 
 	// Get
 	filePath2 := testDir + "/test2.txt"
-	err = s3Get("s3://"+bucketName+"/foo/bar.txt", filePath2)
+	err = S3Get("s3://"+bucketName+"/foo/bar.txt", filePath2)
 	if err != nil {
-		t.Fatal("s3Get failed", err)
+		t.Fatal("S3Get failed", err)
 	}
 
 	// Compare

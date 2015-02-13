@@ -34,8 +34,10 @@ Set Up Memo
     - Specify user-data at the "3. Configure details" "Advanced Details" as the sample below
     - Don't forget to open necessary incoming TCP ports for the game server (25535 for minecraft)
 4. Create an Auto Scaling Group using the Configuration you created at step 3
-    - Set the number of servers to 1
+    - Set the number of servers to 0
     - The name of the Auto Scaling Group must match the value you specified for `SPOTMC_AUTOSCALING_GROUP` in the user data
+    - Edit the Auto Scaling Group and set the number of instances to Min: 0, Max:1, Desired: 1
+    - When you want to shut down the instances, set Desired to 0
 
 
 Sample User Data

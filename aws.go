@@ -39,7 +39,7 @@ func parseS3URL(s3URLStr string) (bucket, key string, err error) {
 	return bucket, key, nil
 }
 
-func s3Put(s3URLStr, targetPath string) error {
+func S3Put(s3URLStr, targetPath string) error {
 	bucket, key, err := parseS3URL(s3URLStr)
 	if err != nil {
 		return err
@@ -73,7 +73,7 @@ func s3Put(s3URLStr, targetPath string) error {
 	return nil
 }
 
-func s3Get(s3URLStr, targetPath string) error {
+func S3Get(s3URLStr, targetPath string) error {
 	bucket, key, err := parseS3URL(s3URLStr)
 	if err != nil {
 		return err
@@ -121,7 +121,7 @@ func autoScalingClient() *autoscaling.AutoScaling {
 	return asCli
 }
 
-func setDesiredCapacity(grpName string, capacity int) error {
+func SetDesiredCapacity(grpName string, capacity int) error {
 	req := autoscaling.SetDesiredCapacityType{
 		AutoScalingGroupName: aws.String(grpName),
 		DesiredCapacity:      aws.Integer(capacity),

@@ -128,7 +128,7 @@ func (smc *SpotMC) getJarFile() (serverPath string, err error) {
 	}
 	serverPath = dir + "/server.jar"
 
-	err = s3Get(smc.JarFileURL, serverPath)
+	err = S3Get(smc.JarFileURL, serverPath)
 	if err != nil {
 		return "", err
 	}
@@ -151,13 +151,13 @@ func (smc *SpotMC) getDataDir() (dataDirPath string, err error) {
 	}
 	tgzFile.Close()
 
-	err = s3Get(smc.DataFileURL, tgzFile.Name())
+	err = S3Get(smc.DataFileURL, tgzFile.Name())
 	if err != nil {
 		// Maybe the first time, it's ok.
 		// Populate the data dir with user-provided eula.txt
 		log.Printf("downloading EULA file: %s", smc.EULAFileURL)
 		eulaFilePath := dataDirPath + "/eula.txt"
-		err2 := s3Get(smc.EULAFileURL, eulaFilePath)
+		err2 := S3Get(smc.EULAFileURL, eulaFilePath)
 		if err2 != nil {
 			return "", err2
 		}
@@ -188,7 +188,7 @@ func (smc *SpotMC) putDataDir() error {
 	}
 
 	// Put tgz to S3
-	err = s3Put(smc.DataFileURL, tgzFile.Name())
+	err = S3Put(smc.DataFileURL, tgzFile.Name())
 	return err
 }
 
@@ -252,13 +252,13 @@ func (smc *SpotMC) ShutdownCluster() error {
 	if smc.autoScalingGroup != "" {
 		log.Printf("setting cluster capacity to 0")
 		for i := 0; i < AWS_RETRY; i++ {
-			log.Printf("failed to set cluster capacity, retrying...")
-			err = setDesiredCapacity(smc.autoScalingGroup, 0)
+			err = SetDesiredCapacity(smc.autoScalingGroup, 0)
 			if err == nil {
 				break
 			}
+			log.Printf("failed to set cluster capacity! (%s), retrying...", err)
 		}
-		log.Fatal("setDesiredCapacity Failed!")
+		log.Fatal("SetDesiredCapacity Failed!")
 	}
 	return err
 }
