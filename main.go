@@ -3,21 +3,12 @@ package spotmc
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"time"
 )
 
-var JAR_PATH_DIR = ""
-var JAR_PATH_PREFIX = "mcjar"
-var DATA_PATH_DIR = ""
-var DATA_PATH_PREFIX = "mcdata"
-var AWS_RETRY = 3
-
-// Defaults
-var DEFAULT_REGION = "ap-northeast-1"
-var DEFAULT_MAX_UPTIME = 43200
-var DEFAULT_MAX_IDLE_TIME = 14400
-var DEFAULT_IDLE_WATCH_PATH = "world/playerdata"
+var TERMINATION_TIME_URL = "http://169.254.169.254/latest/meta-data/spot/termination-time"
 
 func Main() {
 	// Initialize
@@ -98,6 +89,18 @@ func Main() {
 	// This process watches spot instance shutdown notification
 	// and kills the game server before the actual shutdown process starts
 	go func() {
+		d := time.Duration(10) * time.Second
+		for {
+			time.Sleep(d)
+			resp, err := http.Get(TERMINATION_TIME_URL)
+			log.Printf("termination time url: %s (err:%s)", resp.Status, err)
+			// 404 means termination is not scheduled,
+			// 200 means termination is scheduled
+			if resp.StatusCode != 404 {
+				msgs <- "kill_game_server"
+				break
+			}
+		}
 	}()
 
 	// Spawn yet yet another watch proc
@@ -105,32 +108,39 @@ func Main() {
 	go func() {
 		err = cmd.Wait()
 		log.Printf("game server process exited")
-		msgs <- "server_down"
+		msgs <- "game_server_down"
 	}()
 
 	loop := true
 	for loop {
 		select {
 		case msg := <-msgs:
-			if msg == "server_down" {
-				// If the game server ends, the instance dies
-				loop = false
-				smc.KillInstance()
-				break
-			}
-			if msg == "shutdown_cluster" {
-				if smc.autoScalingGroup != "" {
-					log.Printf("setting cluster capacity to 0")
-					for i := 0; i < AWS_RETRY; i++ {
-						err := setDesiredCapacity(smc.autoScalingGroup, 0)
-						if err == nil {
-							break
-						}
-					}
-					log.Fatal("setDesiredCapacity Failed!")
-				}
+			if msg == "kill_game_server" {
 				log.Printf("killing the game server")
 				cmd.Process.Kill()
+			}
+			if msg == "shutdown_cluster" {
+				log.Printf("shutting down the cluster")
+				smc.ShutdownCluster()
+				msgs <- "kill_game_server"
+			}
+			if msg == "game_server_down" {
+				// If the game server ends, the instance dies
+
+				// Save data to S3
+				log.Print("saving data to S3 started")
+				err := smc.putDataDir()
+				if err != nil {
+					log.Printf("saving data to S3 failed: %s", err)
+				} else {
+					log.Printf("saving data to S3 done")
+				}
+
+				// Kill instance
+				smc.KillInstance()
+
+				// Escape the loop
+				loop = false
 			}
 		}
 	}

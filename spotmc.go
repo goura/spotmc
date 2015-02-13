@@ -13,6 +13,20 @@ import (
 	"strings"
 )
 
+var AWS_RETRY = 3
+var JAR_PATH_DIR = ""
+var JAR_PATH_PREFIX = "mcjar"
+var DATA_PATH_DIR = ""
+var DATA_PATH_PREFIX = "mcdata"
+
+// Defaults
+var DEFAULT_KILL_INSTANCE_MODE = "false"
+var DEFAULT_SHUTDOWN_CMD = "/sbin/shutdown -h now"
+var DEFAULT_REGION = "ap-northeast-1"
+var DEFAULT_MAX_UPTIME = 43200
+var DEFAULT_MAX_IDLE_TIME = 14400
+var DEFAULT_IDLE_WATCH_PATH = "world/playerdata"
+
 type SpotMC struct {
 	JarFileURL       string
 	EULAFileURL      string
@@ -22,24 +36,44 @@ type SpotMC struct {
 	serverPath       string
 	dataDirPath      string
 	ddnsURL          string
+	killInstanceMode string
 	maxIdleTime      int
 	maxUptime        int
+	shutdownCommand  string
 	idleWatchPath    string
 	autoScalingGroup string
 }
 
 func NewSpotMC() (*SpotMC, error) {
-	// Check environment variables
-	for _, k := range []string{"SPOTMC_SERVER_JAR_URL", "SPOTMC_SERVER_EULA_URL", "SPOTMC_DATA_URL", "SPOTMC_JAVA_PATH"} {
+	// Check mandatory environment variables
+	for _, k := range []string{
+		"SPOTMC_SERVER_JAR_URL",
+		"SPOTMC_SERVER_EULA_URL",
+		"SPOTMC_DATA_URL",
+		"SPOTMC_JAVA_PATH",
+	} {
 		s := os.Getenv(k)
 		if s == "" {
 			return nil, fmt.Errorf("set valid env vars")
 		}
 	}
 
-	// Uptime and IdleTime
+	// Kill instance mode
+	// "shutdown" or "false"
+	killInstanceMode := DEFAULT_KILL_INSTANCE_MODE
+	s := os.Getenv("SPOTMC_KILL_INSTANCE_MODE")
+	if s != "" {
+		killInstanceMode = s
+	}
+	shutdownCommand := DEFAULT_SHUTDOWN_CMD
+	s = os.Getenv("SPOTMC_SHUTDOWN_CMD")
+	if s != "" {
+		shutdownCommand = s
+	}
+
+	// Max uptime and max idle time
 	maxIdleTime := DEFAULT_MAX_IDLE_TIME
-	s := os.Getenv("SPOTMC_MAX_IDLE_TIME")
+	s = os.Getenv("SPOTMC_MAX_IDLE_TIME")
 	if s != "" {
 		i, err := strconv.Atoi(s)
 		if err == nil {
@@ -76,8 +110,10 @@ func NewSpotMC() (*SpotMC, error) {
 		JavaPath:         os.Getenv("SPOTMC_JAVA_PATH"),
 		JavaArgs:         os.Getenv("SPOTMC_JAVA_ARGS"),
 		ddnsURL:          ddnsURL,
+		killInstanceMode: killInstanceMode,
 		maxIdleTime:      maxIdleTime,
 		maxUptime:        maxUptime,
+		shutdownCommand:  shutdownCommand,
 		idleWatchPath:    idleWatchPath,
 		autoScalingGroup: autoScalingGroup,
 	}
@@ -189,10 +225,39 @@ func (smc *SpotMC) StartServer() (exec.Cmd, error) {
 	return cmd, err
 }
 
-func (smc *SpotMC) KillInstance() {
+func (smc *SpotMC) KillInstance() error {
 	log.Printf("KillInstance invoked")
-	log.Print("saving data to S3 started")
-	smc.putDataDir()
-	log.Print("saving data to S3 done")
-	// TODO: kill the instance
+	log.Printf("killInstanceMode: %s", smc.killInstanceMode)
+
+	if smc.killInstanceMode == "false" {
+		// False mode. Don't do anything
+		return nil
+	}
+
+	if smc.killInstanceMode == "shutdown" {
+		cmdArgs := strings.Split(smc.shutdownCommand, " ")
+		cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+		err := cmd.Wait()
+		return err
+	}
+
+	return nil
+}
+
+func (smc *SpotMC) ShutdownCluster() error {
+	log.Printf("ShutDownCluster invoked")
+	log.Printf("autoScalingGroup: %s", smc.autoScalingGroup)
+	var err error
+	if smc.autoScalingGroup != "" {
+		log.Printf("setting cluster capacity to 0")
+		for i := 0; i < AWS_RETRY; i++ {
+			log.Printf("failed to set cluster capacity, retrying...")
+			err = setDesiredCapacity(smc.autoScalingGroup, 0)
+			if err == nil {
+				break
+			}
+		}
+		log.Fatal("setDesiredCapacity Failed!")
+	}
+	return err
 }
