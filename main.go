@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -109,6 +111,14 @@ func Main() {
 	go func() {
 		err = cmd.Wait()
 		log.Printf("game server process exited")
+		msgs <- "game_server_down"
+	}()
+
+	// Spawn yet yet yet another proc to handle SIGTERM
+	sigchan := make(chan os.Signal, 1)
+	signal.Notify(sigchan, syscall.SIGTERM)
+	go func() {
+		<-sigchan
 		msgs <- "game_server_down"
 	}()
 
