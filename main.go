@@ -132,7 +132,10 @@ func Main() {
 			}
 			if msg == "shutdown_cluster" {
 				log.Printf("shutting down the cluster")
-				smc.ShutdownCluster()
+				err := smc.ShutdownCluster()
+				if err != nil {
+					log.Fatal("cluster shutdown failed!: %s", err)
+				}
 				msgs <- "kill_game_server"
 			}
 			if msg == "game_server_down" {

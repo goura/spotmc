@@ -254,11 +254,11 @@ func (smc *SpotMC) ShutdownCluster() error {
 		for i := 0; i < AWS_RETRY; i++ {
 			err = SetDesiredCapacity(smc.autoScalingGroup, 0)
 			if err == nil {
+				log.Printf("SetDesiredCapacity succeeded")
 				break
 			}
 			log.Printf("failed to set cluster capacity! (%s), retrying...", err)
 		}
-		log.Fatal("SetDesiredCapacity Failed!")
 	}
 	return err
 }
