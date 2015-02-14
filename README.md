@@ -37,7 +37,7 @@ Set Up Memo
     - Set the number of servers to 0
     - The name of the Auto Scaling Group must match the value you specified for `SPOTMC_AUTOSCALING_GROUP` in the user data
     - Edit the Auto Scaling Group and set the number of instances to Min: 0, Max:1, Desired: 1
-    - When you want to shut down the instance, set Desired to 0 (or it should be automatically shut down if no one is logging in to the game)
+    - When you want to shut down the instance, set Desired to 0 (or it should be automatically shut down after a while if no one is logging in to the game)
 
 
 Sample User Data
