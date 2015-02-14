@@ -54,10 +54,19 @@ export SPOTMC_AUTOSCALING_GROUP="spotmc_grp_001"
 export SPOTMC_AWS_REGION="ap-northeast-1"
 export SPOTMC_KILL_INSTANCE_MODE="shutdown"
 
+# Download spotmc
 cd /
 wget https://github.com/goura/spotmc/releases/download/0.0.1/spotmc
 chmod 755 spotmc
 
+# Set a dummy initscript
+# This prevents sudden shutdown and spares time to sync data to S3.
+./spotmc -rhinitscript > /etc/init.d/dummy-smc-stopper
+chmod 755 /etc/init.d/dummy-smc-stopper
+chkconfig --add dummy-smc-stopper
+/etc/init.d/dummy-smc-stopper start
+
+# Run spotmc
 nohup ./spotmc &
 ```
 
