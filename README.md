@@ -2,7 +2,7 @@
 
 SpotMC
 =======
-SpotMC is a utility to host a craftbukkit/minecraft_server type games on an AWS EC2 spot instance.
+SpotMC is a utility to host a craftbukkit/minecraft_server type game on an AWS EC2 spot instance.
 
 Using SpotMC, you might be able to:
 * Start your game server on a spot instance, which is very cheap in price
