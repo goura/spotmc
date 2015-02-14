@@ -52,7 +52,7 @@ func Main() {
 	// Spawn watch proc
 	// This process shutdowns the *cluster* when there's a long idle time.
 	go func() {
-		grace := time.Minute * 10
+		grace := time.Duration(smc.idleWatchGraceTime) * time.Second
 		log.Printf("idle watcher starts after %.2f mins", grace.Minutes())
 		time.Sleep(grace) // Wait for a grace period
 		log.Printf("idle watcher starting")
