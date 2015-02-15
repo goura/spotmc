@@ -63,6 +63,12 @@
             "Type": "String",
             "AllowedPattern": "^https?://.*",
             "Description": "If this parameter is not empty, the server will try to register itself to a dynamic DDNS by accessing this URL."
+        },
+        "SpotMCDownloadURL": {
+            "Type": "String",
+            "AllowedPattern": "^https?://.*",
+            "Default": "https://github.com/goura/spotmc/releases/download/develop-latest/spotmc",
+            "Description": "The URL to download spotmc command itself. Leave it as default."
         }
     },
 
@@ -144,7 +150,7 @@
                     "'\n",
 
                     "cd /\n",
-                    "wget https://github.com/goura/spotmc/releases/download/0.0.1/spotmc\n",
+                    "wget ", {"Ref": "SpotMCDownloadURL"}, "\n",
                     "chmod 755 spotmc\n",
 
                     "./spotmc -rhinitscript > /etc/init.d/dummy-smc-stopper\n",
