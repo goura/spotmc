@@ -1,0 +1,179 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+
+    "Description": "Sample template for SpotMC",
+
+    "Parameters": {
+        "IamInstanceProfile": {
+            "Type": "String",
+            "Description": "Name or the Amazon Resource Name (ARN) of the instance profile associated with the IAM role for the instance"
+        },
+        "InstanceType": {
+            "Type": "String",
+            "Default": "m3.medium"
+        },
+        "BiddingPrice": {
+            "Type": "Number",
+            "Default": "0.02",
+            "Description": "The max spot price (USD/h) to bid for the spot instance."
+        },
+        "SpotMCS3Bucket": {
+            "Type": "String",
+            "AllowedPattern": "[^/]*",
+            "Description": "The S3 bucket which you have prepared. It must be created in the same region where this CloudFormation template is running.",
+            "ConstraintDescription": "must not contain '/'"
+        },
+        "JARFilePath": {
+            "Type": "String",
+            "AllowedPattern": "^/.+",
+            "Description": "A path in S3 bucket where you placed the JAR file of the game server. Don't include the S3 bucket name.",
+            "ConstraintDescription": "must start with '/'"
+        },
+        "DataPath": {
+            "Type": "String",
+            "Default": "/data.tgz",
+            "AllowedPattern": "^/.+",
+            "Description": "A path in S3 bucket where the datafile are going to be placed.",
+            "ConstraintDescription": "must start with '/'"
+        },
+        "EULAFilePath": {
+            "Type": "String",
+            "Default": "/eula.txt",
+            "AllowedPattern": "^/.+",
+            "Description": "A path in S3 bucket where you placed the eula file of the game server. Don't include the S3 bucket name.",
+            "ConstraintDescription": "must start with /"
+        },
+        "JavaExtraArgs": {
+            "Type": "String",
+            "Default": "-Xmx1024M -Xms1024M"
+        },
+        "MaxIdleTime": {
+            "Type": "Number",
+            "Default": 600,
+            "MinValue": 60,
+            "Description": "After no activity of this seconds, the server and autoscaling group will shutdown."
+        },
+        "MaxUptime": {
+            "Type": "Number",
+            "Default": 14400,
+            "MinValue": 3600,
+            "Description": "The server and autoscaling group will shutdown after this seconds, no matter if there is an activity or not."
+        },
+        "DDNSUpdateURL": {
+            "Type": "String",
+            "AllowedPattern": "^https?://.*",
+            "Description": "If this parameter is not empty, the server will try to register itself to a dynamic DDNS by accessing this URL."
+        }
+    },
+
+    "Mappings": {
+        "AWSRegionArch2AMI": {
+            "us-east-1"      : { "HVM64" : "ami-ea6e2a82" },
+            "us-west-2"      : { "HVM64" : "ami-adc39a9d" },
+            "us-west-1"      : { "HVM64" : "ami-46908903" },
+            "eu-west-1"      : { "HVM64" : "ami-9b23aeec" },
+            "eu-central-1"   : { "HVM64" : "ami-78013265" },
+            "ap-southeast-1" : { "HVM64" : "ami-e0bb90b2" },
+            "ap-northeast-1" : { "HVM64" : "ami-12869813" },
+            "ap-southeast-2" : { "HVM64" : "ami-e30773d9" },
+            "sa-east-1"      : { "HVM64" : "ami-ad9925b0" },
+            "cn-north-1"     : { "HVM64" : "ami-a61d8f9f" }
+        }
+    },
+
+    "Resources": {
+        "SpotMCAutoScalingGroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "AvailabilityZones": {"Fn::GetAZs": ""},
+                "LaunchConfigurationName": {"Ref": "LaunchConfig"},
+                "MinSize": "0",
+                "MaxSize": "1"
+            }
+        },
+
+        "LaunchConfig": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Metadata": {
+                "AWS::CloudFormation::Init": {}
+            },
+            "Properties": {
+                "SpotPrice": {"Ref": "BiddingPrice"},
+                "IamInstanceProfile": {"Ref": "IamInstanceProfile"},
+                "ImageId": {"Fn::FindInMap": [
+                    "AWSRegionArch2AMI", {"Ref": "AWS::Region"}, "HVM64"
+                    ]
+                },
+                "SecurityGroups": [{"Ref": "InstanceSecurityGroup"}],
+                "InstanceType": {"Ref": "InstanceType"},
+                "UserData": {"Fn::Base64": {"Fn::Join": ["", [
+                    "#!/bin/bash\n",
+                    "export SPOTMC_DDNS_UPDATE_URL='",
+                    {"Ref": "DDNSUpdateURL"},
+                    "'\n",
+
+                    "export SPOTMC_SERVER_JAR_URL='",
+                    "s3://", {"Ref": "SpotMCS3Bucket"}, 
+                    {"Ref": "JARFilePath"}, "'\n",
+
+
+                    "export SPOTMC_SERVER_EULA_URL='",
+                    "s3://", {"Ref": "SpotMCS3Bucket"},
+                    {"Ref": "EULAFilePath"}, "'\n",
+
+                    "export SPOTMC_DATA_URL='",
+                    "s3://", {"Ref": "SpotMCS3Bucket"},
+                    {"Ref": "DataPath"}, "'\n",
+
+                    "export SPOTMC_JAVA_PATH=/usr/bin/java\n",
+
+                    "export SPOTMC_JAVA_ARGS='",
+                    {"Ref": "JavaExtraArgs"}, "'\n",
+
+                    "export SPOTMC_AWS_REGION='",
+                    {"Ref": "AWS::Region"}, "'\n",
+
+                    "export SPOTMC_KILL_INSTANCE_MODE=shutdown\n",
+
+                    "export SPOTMC_MAX_IDLE_TIME='",
+                    {"Ref": "MaxIdleTime"},
+                    "'\n",
+
+                    "export SPOTMC_MAX_UPTIME='",
+                    {"Ref": "MaxUptime"},
+                    "'\n",
+
+                    "cd /\n",
+                    "wget https://github.com/goura/spotmc/releases/download/0.0.1/spotmc\n",
+                    "chmod 755 spotmc\n",
+
+                    "./spotmc -rhinitscript > /etc/init.d/dummy-smc-stopper\n",
+                    "chmod 755 /etc/init.d/dummy-smc-stopper\n",
+                    "chkconfig --add dummy-smc-stopper\n",
+                    "/etc/init.d/dummy-smc-stopper start\n",
+
+                    "nohup ./spotmc &\n"
+
+                ]]}}
+            }
+        },
+
+        "InstanceSecurityGroup" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupDescription" : "Enable 25565",
+                "SecurityGroupIngress" : [{
+                    "CidrIp": "0.0.0.0/0",
+                    "IpProtocol" : "tcp",
+                    "FromPort" : "25565",
+                    "ToPort" : "25565"
+                }]
+            }
+        }
+    },
+    "Outputs": {
+        "AutoScalingGroupName": {
+            "Value": {"Ref": "SpotMCAutoScalingGroup"}
+        }
+    }
+}
