@@ -51,8 +51,8 @@ type SpotMC struct {
 	shutdownCommand    string
 	idleWatchGraceTime int
 	idleWatchPath      string
-	autoScalingGroup   string
-	msgs               chan int
+	//	autoScalingGroup   string
+	msgs chan int
 }
 
 func NewSpotMC() (*SpotMC, error) {
@@ -122,7 +122,7 @@ func NewSpotMC() (*SpotMC, error) {
 	ddnsURL := os.Getenv("SPOTMC_DDNS_UPDATE_URL")
 
 	// AutoScaling Group
-	autoScalingGroup := os.Getenv("SPOTMC_AUTOSCALING_GROUP")
+	//autoScalingGroup := os.Getenv("SPOTMC_AUTOSCALING_GROUP")
 
 	smc := &SpotMC{
 		JarFileURL:         os.Getenv("SPOTMC_SERVER_JAR_URL"),
@@ -137,8 +137,8 @@ func NewSpotMC() (*SpotMC, error) {
 		shutdownCommand:    shutdownCommand,
 		idleWatchGraceTime: idleWatchGraceTime,
 		idleWatchPath:      idleWatchPath,
-		autoScalingGroup:   autoScalingGroup,
-		msgs:               make(chan int),
+		//autoScalingGroup:   autoScalingGroup,
+		msgs: make(chan int),
 	}
 
 	return smc, nil
@@ -275,17 +275,23 @@ func (smc *SpotMC) killInstance() error {
 }
 
 func (smc *SpotMC) shutdownCluster() error {
-	log.WithFields(log.Fields{
-		"autoScalingGroup": smc.autoScalingGroup,
-	}).Info("ShutDownCluster invoked")
+	/*
+		log.WithFields(log.Fields{
+			"autoScalingGroup": smc.autoScalingGroup,
+		}).Info("ShutDownCluster invoked")
+	*/
+	log.Info("ShutDownCluster invoked")
 
 	var err error
-	if smc.autoScalingGroup != "" {
+	//if smc.autoScalingGroup != "" {
+	if true {
 		log.Info("setting cluster capacity to 0")
 		for i := 0; i < AWS_RETRY; i++ {
-			err = SetDesiredCapacity(smc.autoScalingGroup, 0)
+			//err = SetDesiredCapacity(smc.autoScalingGroup, 0)
+			err = TerminateInstanceInAutoScalingGroup()
 			if err == nil {
-				log.Info("SetDesiredCapacity succeeded")
+				//log.Info("SetDesiredCapacity succeeded")
+				log.Info("TerminateInstanceInAutoScalingGroup succeeded")
 				break
 			}
 			log.WithFields(log.Fields{"err": err}).Error("failed to set cluster capacity, retrying")
