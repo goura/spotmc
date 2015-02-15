@@ -177,13 +177,14 @@ func (smc *SpotMC) getDataDir() (dataDirPath string, err error) {
 	if err != nil {
 		// Maybe the first time, it's ok.
 		// Populate the data dir with user-provided eula.txt
-		log.Printf("downloading EULA file: %s", smc.EULAFileURL)
+		log.WithFields(log.Fields{"url": smc.EULAFileURL}).Info("downloading EULA file")
 		eulaFilePath := dataDirPath + "/eula.txt"
 		err2 := S3Get(smc.EULAFileURL, eulaFilePath)
 		if err2 != nil {
+			log.WithFields(log.Fields{"err": err2}).Error("downloading EULA file failed")
 			return "", err2
 		}
-		log.Printf("EULA file path: %s", eulaFilePath)
+		log.WithFields(log.Fields{"path": eulaFilePath}).Info("EULA file")
 	} else {
 		tgz := extractor.NewTgz()
 		err = tgz.Extract(tgzFile.Name(), dataDirPath)
@@ -216,13 +217,13 @@ func (smc *SpotMC) putDataDir() error {
 
 func (smc *SpotMC) updateDDNS() {
 	if smc.ddnsURL != "" {
-		log.Printf("issuing DDNS update query")
+		log.Info("Issuing DDNS query")
 		resp, err := http.Get(smc.ddnsURL)
 		resp.Body.Close()
 		if err != nil {
-			log.Printf("DDNS update query failed: %s", err)
+			log.WithFields(log.Fields{"err": err}).Warn("DDNS update query failed")
 		} else {
-			log.Printf("DDNS update query result: %s", resp.Status)
+			log.WithFields(log.Fields{"status": resp.Status}).Info("DDNS update query")
 		}
 	}
 }
@@ -234,7 +235,6 @@ func (smc *SpotMC) startServer() (exec.Cmd, error) {
 		args = append(args, extraArgs...)
 	}
 	args = append(args, "-jar", smc.serverPath, "nogui")
-	log.Printf("Command to execute:%s args:%s length:%d", args[0], args, len(args))
 
 	cmd := exec.Cmd{
 		Path: args[0],
@@ -245,12 +245,18 @@ func (smc *SpotMC) startServer() (exec.Cmd, error) {
 		Stderr: os.Stderr,
 	}
 	err := cmd.Start()
+
+	log.WithFields(log.Fields{
+		"cmd": args[0], "args": args, "len": len(args), "err": err,
+	}).Info("Executed command")
+
 	return cmd, err
 }
 
 func (smc *SpotMC) killInstance() error {
-	log.Printf("killInstance invoked")
-	log.Printf("killInstanceMode: %s", smc.killInstanceMode)
+	log.WithFields(log.Fields{
+		"killInstanceMode": smc.killInstanceMode,
+	}).Info("killInstance invoked")
 
 	if smc.killInstanceMode == "false" {
 		// False mode. Don't do anything
@@ -268,19 +274,24 @@ func (smc *SpotMC) killInstance() error {
 }
 
 func (smc *SpotMC) shutdownCluster() error {
-	log.Printf("ShutDownCluster invoked")
-	log.Printf("autoScalingGroup: %s", smc.autoScalingGroup)
+	log.WithFields(log.Fields{
+		"autoScalingGroup": smc.autoScalingGroup,
+	}).Info("ShutDownCluster invoked")
+
 	var err error
 	if smc.autoScalingGroup != "" {
-		log.Printf("setting cluster capacity to 0")
+		log.Info("setting cluster capacity to 0")
 		for i := 0; i < AWS_RETRY; i++ {
 			err = SetDesiredCapacity(smc.autoScalingGroup, 0)
 			if err == nil {
-				log.Printf("SetDesiredCapacity succeeded")
+				log.Info("SetDesiredCapacity succeeded")
 				break
 			}
-			log.Printf("failed to set cluster capacity! (%s), retrying...", err)
+			log.WithFields(log.Fields{"err": err}).Error("failed to set cluster capacity, retrying")
 		}
+	}
+	if err != nil {
+		log.Fatal("failed to set cluster capacity")
 	}
 	return err
 }
@@ -288,9 +299,13 @@ func (smc *SpotMC) shutdownCluster() error {
 // uptimeWatcher() shutdowns the *cluster* when
 // the process uptime exceeds the predefined limit (smc.maxUptime).
 func (smc *SpotMC) uptimeWatcher() {
+	logFields := log.Fields{"maxUptime": smc.maxUptime}
+	log.WithFields(logFields).Info("uptimeWatcher starting")
+
 	d := time.Duration(smc.maxUptime) * time.Second
 	time.Sleep(d)
-	log.Printf("uptime exceeded limit, shutdown the cluster")
+
+	log.WithFields(logFields).Info("uptime exceeded limit, shutdown the cluster")
 	smc.msgs <- msgShutdownCluster
 }
 
@@ -298,24 +313,27 @@ func (smc *SpotMC) uptimeWatcher() {
 // there's a long idle time (smc.maxIdleTime).
 func (smc *SpotMC) idleWatcher() {
 	grace := time.Duration(smc.idleWatchGraceTime) * time.Second
-	log.Printf("idle watcher starts after %.2f mins", grace.Minutes())
+	log.Infof("idle watcher starts after %.2f mins", grace.Minutes())
 	time.Sleep(grace) // Wait for a grace period
-	log.Printf("idle watcher starting")
 
 	fullPath := smc.dataDirPath + "/" + smc.idleWatchPath
 	d := time.Duration(smc.maxIdleTime) * time.Second
+
+	log.WithFields(log.Fields{"idleWatchPath": fullPath, "maxIdleTime": smc.maxIdleTime}).Info("idle watcher starting")
+
 	for true {
 		time.Sleep(d / 12)
 		fi, err := os.Stat(fullPath)
 		if err != nil {
 			log.Printf("os.Stat failed(%s): %s", fullPath, err)
+			log.WithFields(log.Fields{"idleWatchPath": fullPath, "err": err}).Error("os.Stat failed")
 			continue
 		}
 		mtime := fi.ModTime()
-		log.Printf("time.Since(mtime): %.2f minutes (%s)",
+		log.Infof("time.Since(mtime): %.2f minutes (%s)",
 			time.Since(mtime).Minutes(), fullPath)
 		if time.Since(mtime) > d {
-			log.Printf("idle time exceeded limit, shutdown the cluster")
+			log.Infof("idle time exceeded limit, shutdown the cluster")
 			break
 		}
 	}
@@ -332,10 +350,17 @@ func (smc *SpotMC) terminationNotificationWatcher() {
 		time.Sleep(d)
 		resp, err := http.Get(TERMINATION_TIME_URL)
 		resp.Body.Close()
-		log.Printf("termination time url: %s (err:%s)", resp.Status, err)
+		log.WithFields(log.Fields{
+			"url":    TERMINATION_TIME_URL,
+			"status": resp.StatusCode,
+			"err":    err,
+		}).Debug("termination check result")
 		// 404 means termination is not scheduled,
 		// 200 means termination is scheduled
-		if resp.StatusCode != 404 {
+		if resp.StatusCode == 200 {
+			log.WithFields(log.Fields{
+				"status": resp.StatusCode,
+			}).Info("termination schedule detected, kill this instance beforehand")
 			smc.msgs <- msgInstanceTerminating
 			break
 		}

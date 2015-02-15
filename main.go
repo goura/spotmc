@@ -20,22 +20,26 @@ func Main() {
 	smc.updateDDNS()
 
 	// Get game server jar file
-	log.Printf("retrieving game server jar file")
+	log.Info("retrieving game server jar file")
 	_, err = smc.getJarFile()
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-	log.Printf("game server path: %s", smc.serverPath)
+	log.WithFields(log.Fields{
+		"path": smc.serverPath,
+	}).Info("game server jar file retrieved")
 
 	// Get the data dir from S3
-	log.Printf("retrieving data directory")
+	log.Info("retrieving data directory")
 	_, err = smc.getDataDir()
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-	log.Printf("data directory: %s", smc.dataDirPath)
+	log.WithFields(log.Fields{
+		"path": smc.dataDirPath,
+	}).Info("data directory archive file retrieved")
 
 	// Run game server
 	log.Printf("starting the game server")
@@ -47,7 +51,7 @@ func Main() {
 	// Spawn watch proc which waits for the game server to end
 	go func() {
 		err = cmd.Wait()
-		log.Printf("game server process exited")
+		log.Info("game server process exited")
 		smc.msgs <- msgGameServerDown
 	}()
 
@@ -68,14 +72,16 @@ func Main() {
 	for {
 		msg := <-smc.msgs
 		if msg == msgInstanceTerminating {
-			log.Printf("killing the game server")
+			log.Info("killing the game server")
 			cmd.Process.Kill()
 		}
 		if msg == msgShutdownCluster {
-			log.Printf("shutting down the cluster")
+			log.Info("shutting down the cluster")
 			err := smc.shutdownCluster()
 			if err != nil {
-				log.Fatal("cluster shutdown failed!: %s", err)
+				log.WithFields(log.Fields{
+					"err": err,
+				}).Fatal("cluster shutdown failed!")
 			}
 			go func() {
 				smc.msgs <- msgInstanceTerminating
@@ -85,12 +91,14 @@ func Main() {
 			// If the game server ends, the instance dies
 
 			// Save data to S3
-			log.Print("saving data to S3 started")
+			log.Info("saving data to S3 started")
 			err := smc.putDataDir()
 			if err != nil {
-				log.Printf("saving data to S3 failed: %s", err)
+				log.WithFields(log.Fields{
+					"err": err,
+				}).Fatal("saving data to S3 failed")
 			} else {
-				log.Printf("saving data to S3 done")
+				log.Info("saving data to S3 done")
 			}
 
 			// Kill instance
