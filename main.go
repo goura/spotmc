@@ -12,7 +12,8 @@ func Main() {
 	// Initialize
 	smc, err := NewSpotMC()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+		os.Exit(1)
 	}
 
 	// Update DDNS
