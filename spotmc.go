@@ -138,6 +138,7 @@ func NewSpotMC() (*SpotMC, error) {
 		idleWatchGraceTime: idleWatchGraceTime,
 		idleWatchPath:      idleWatchPath,
 		autoScalingGroup:   autoScalingGroup,
+		msgs:               make(chan int),
 	}
 
 	return smc, nil
