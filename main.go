@@ -119,7 +119,7 @@ func Main() {
 	signal.Notify(sigchan, syscall.SIGTERM)
 	go func() {
 		<-sigchan
-		msgs <- "game_server_down"
+		msgs <- "kill_game_server"
 	}()
 
 	for {
@@ -134,7 +134,9 @@ func Main() {
 			if err != nil {
 				log.Fatal("cluster shutdown failed!: %s", err)
 			}
-			msgs <- "kill_game_server"
+			go func() {
+				msgs <- "kill_game_server"
+			}()
 		}
 		if msg == "game_server_down" {
 			// If the game server ends, the instance dies
