@@ -125,18 +125,6 @@ func autoScalingClient() *autoscaling.AutoScaling {
 	return asCli
 }
 
-func SetDesiredCapacity(grpName string, capacity int) error {
-	req := autoscaling.SetDesiredCapacityType{
-		AutoScalingGroupName: aws.String(grpName),
-		DesiredCapacity:      aws.Integer(capacity),
-		HonorCooldown:        aws.Boolean(true),
-	}
-
-	asCli := autoScalingClient()
-	err := asCli.SetDesiredCapacity(&req)
-	return err
-}
-
 func TerminateInstanceInAutoScalingGroup() error {
 	// Auto determine myself
 	resp, err := http.Get(INSTANCE_ID_URL)
