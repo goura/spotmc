@@ -69,6 +69,10 @@
             "AllowedPattern": "^https?://.*",
             "Default": "https://github.com/goura/spotmc/releases/download/develop-latest/spotmc",
             "Description": "The URL to download spotmc command itself. Leave it as default."
+        },
+        "AZ": {
+            "Type": "CommaDelimitedList",
+            "Description": "Comma separated list of the AZ you want to launch the instance. Leave it blank to specify all AZs."
         }
     },
 
@@ -87,11 +91,21 @@
         }
     },
 
+    "Conditions": {
+        "IsAZSpecified": {
+            "Fn::Equals": ["", {"Fn::Join": ["", {"Ref": "AZ"}]}]
+        }
+    },
+
     "Resources": {
         "SpotMCAutoScalingGroup": {
             "Type": "AWS::AutoScaling::AutoScalingGroup",
             "Properties": {
-                "AvailabilityZones": {"Fn::GetAZs": ""},
+                "AvailabilityZones": {"Fn::If": [
+                    "IsAZSpecified",
+                    {"Fn::GetAZs": ""},
+                    {"Ref": "AZ"}
+                ]},
                 "LaunchConfigurationName": {"Ref": "LaunchConfig"},
                 "MinSize": "0",
                 "MaxSize": "1"
