@@ -2,10 +2,10 @@ package spotmc
 
 import (
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/pivotal-golang/archiver/compressor"
 	"github.com/pivotal-golang/archiver/extractor"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"

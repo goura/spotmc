@@ -88,6 +88,9 @@ spotmc command uses env vars for configuration
 * `SPOTMC_JAVA_PATH` (mandatory)
     * Specify the full path to java cmd (like `/usr/bin/java`).
 
+* `SPOTMC_AWS_REGION` (default="ap-northeast-1")
+    * Which AWS region to host the server in
+
 * `SPOTMC_JAVA_ARGS` (default=none)
     * Extra args to give to java cmd, like `-Xmx1024M -Xms1024M`
 
@@ -108,9 +111,6 @@ spotmc command uses env vars for configuration
 * `SPOTMC_AUTOSCALING_GROUP` (default=none)
     * When spotmc decides to shutdown the whole cluster, it tries to shutdown the autoscaling group. Specify the name of the group.
     * If this paramter is not specified, spotmc won't touch the autoscaling group.
-
-* `SPOTMC_AWS_REGION` (default="ap-northeast-1")
-    * Which AWS region to use
 
 * `SPOTMC_KILL_INSTANCE_MODE` (default="false")
     * spotmc tries to kill the instance when the game server goes down for some reason, or when it detected the spot instance termination notification
