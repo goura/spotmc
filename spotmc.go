@@ -343,7 +343,7 @@ func (smc *SpotMC) idleWatcher() {
 
 // terminationNotificationWatcher() accesses EC2 meta-data and
 // watches spot instance shutdown notification.
-// It sends a message to kill the game server before
+// It sends a message to kill the game server and save data before
 // the actual shutdown process starts
 func (smc *SpotMC) terminationNotificationWatcher() {
 	d := time.Duration(10) * time.Second
