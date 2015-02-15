@@ -7,10 +7,14 @@ import (
 	"github.com/awslabs/aws-sdk-go/gen/autoscaling"
 	"github.com/awslabs/aws-sdk-go/gen/s3"
 	"io"
+	"io/ioutil"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
 )
+
+var INSTANCE_ID_URL = "http://169.254.169.254/latest/meta-data/instance-id"
 
 func s3Client() *s3.S3 {
 	creds := aws.DetectCreds("", "", "")
@@ -121,14 +125,29 @@ func autoScalingClient() *autoscaling.AutoScaling {
 	return asCli
 }
 
-func SetDesiredCapacity(grpName string, capacity int) error {
-	req := autoscaling.SetDesiredCapacityType{
-		AutoScalingGroupName: aws.String(grpName),
-		DesiredCapacity:      aws.Integer(capacity),
-		HonorCooldown:        aws.Boolean(true),
+func TerminateInstanceInAutoScalingGroup() error {
+	// Auto determine myself
+	resp, err := http.Get(INSTANCE_ID_URL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("could not get instance id")
+	}
+	buf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	instanceID := string(buf)
+
+	// Terminate the instance and decrement desired capacity
+	req := autoscaling.TerminateInstanceInAutoScalingGroupType{
+		InstanceID:                     aws.String(instanceID),
+		ShouldDecrementDesiredCapacity: aws.Boolean(true),
 	}
 
 	asCli := autoScalingClient()
-	err := asCli.SetDesiredCapacity(&req)
+	_, err = asCli.TerminateInstanceInAutoScalingGroup(&req)
 	return err
 }

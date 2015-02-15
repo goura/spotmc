@@ -35,7 +35,6 @@ Set Up Memo
     - Don't forget to open necessary incoming TCP ports for the game server (25535 for minecraft)
 4. Create an Auto Scaling Group using the Configuration you created at step 3
     - Set the number of servers to 0
-    - The name of the Auto Scaling Group must match the value you specified for `SPOTMC_AUTOSCALING_GROUP` in the user data
     - Edit the Auto Scaling Group and set the number of instances to Min: 0, Max:1, Desired: 1
     - When you want to shut down the instance, set Desired to 0 (or it should be automatically shut down after a while if no one is logging in to the game)
 
@@ -50,7 +49,6 @@ export SPOTMC_SERVER_EULA_URL=s3://XXXXXXXX/eula.txt
 export SPOTMC_DATA_URL=s3://XXXXXXXX/data.tgz
 export SPOTMC_JAVA_PATH=/usr/bin/java
 export SPOTMC_JAVA_ARGS="-Xmx1024M -Xms1024M"
-export SPOTMC_AUTOSCALING_GROUP="spotmc_grp_001"
 export SPOTMC_AWS_REGION="ap-northeast-1"
 export SPOTMC_KILL_INSTANCE_MODE="shutdown"
 
@@ -101,16 +99,11 @@ spotmc command uses env vars for configuration
     * The time after which no matter whether someone is still playing or not, the server will terminate. Specify this in seconds.
 
 * `SPOTMC_IDLE_WATCH_PATH` (default="world/playerdata")
-    * The directory, relative to game data root, to watch for the game activity. If the specified path is inactive (i.e. doesn't get updated) for `SPOTMC_MAX_IDLE_TIME`, spotmc tries to shutdown the cluster specified in `SPOTMC_AUTOSCALING_GROUP`.
-
+    * The directory, relative to game data root, to watch for the game activity. If the specified path is inactive (i.e. doesn't get updated) for `SPOTMC_MAX_IDLE_TIME`, spotmc tries to shutdown the autoscaling group which the instance is belonging to.
 
 * `SPOTMC_DDNS_UPDATE_URL` (default=none)
     * When spotmc starts, it accesses this URL. Use it to update your DDNS settings.
     * If this parameter is not specified, spotmc won't do anything.
-
-* `SPOTMC_AUTOSCALING_GROUP` (default=none)
-    * When spotmc decides to shutdown the whole cluster, it tries to shutdown the autoscaling group. Specify the name of the group.
-    * If this paramter is not specified, spotmc won't touch the autoscaling group.
 
 * `SPOTMC_KILL_INSTANCE_MODE` (default="false")
     * spotmc tries to kill the instance when the game server goes down for some reason, or when it detected the spot instance termination notification
