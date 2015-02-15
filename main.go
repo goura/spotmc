@@ -3,14 +3,10 @@ package spotmc
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 )
-
-var TERMINATION_TIME_URL = "http://169.254.169.254/latest/meta-data/spot/termination-time"
 
 func Main() {
 	// Initialize
@@ -42,103 +38,49 @@ func Main() {
 
 	// Run game server
 	log.Printf("starting the game server")
-	cmd, err := smc.StartServer()
+	cmd, err := smc.startServer()
 	if err != nil {
 		err = fmt.Errorf("game server did not start: %s", err)
 	}
 
-	msgs := make(chan string)
-
-	// Spawn watch proc
-	// This process shutdowns the *cluster* when there's a long idle time.
-	go func() {
-		grace := time.Duration(smc.idleWatchGraceTime) * time.Second
-		log.Printf("idle watcher starts after %.2f mins", grace.Minutes())
-		time.Sleep(grace) // Wait for a grace period
-		log.Printf("idle watcher starting")
-
-		fullPath := smc.dataDirPath + "/" + smc.idleWatchPath
-		d := time.Duration(smc.maxIdleTime) * time.Second
-		for true {
-			time.Sleep(d / 12)
-			fi, err := os.Stat(fullPath)
-			if err != nil {
-				log.Printf("os.Stat failed(%s): %s", fullPath, err)
-				continue
-			}
-			mtime := fi.ModTime()
-			log.Printf("time.Since(mtime): %.2f minutes (%s)",
-				time.Since(mtime).Minutes(), fullPath)
-			if time.Since(mtime) > d {
-				log.Printf("idle time exceeded limit, shutdown the cluster")
-				break
-			}
-		}
-		msgs <- "shutdown_cluster"
-	}()
-
-	// Spawn another watch proc
-	// This process shutdowns the *cluster* when the process uptime exceeds
-	// the predefined limit.
-	go func() {
-		d := time.Duration(smc.maxUptime) * time.Second
-		time.Sleep(d)
-		log.Printf("uptime exceeded limit, shutdown the cluster")
-		msgs <- "shutdown_cluster"
-	}()
-
-	// Spawn yet another watch proc
-	// This process watches spot instance shutdown notification
-	// and kills the game server before the actual shutdown process starts
-	go func() {
-		d := time.Duration(10) * time.Second
-		for {
-			time.Sleep(d)
-			resp, err := http.Get(TERMINATION_TIME_URL)
-			resp.Body.Close()
-			log.Printf("termination time url: %s (err:%s)", resp.Status, err)
-			// 404 means termination is not scheduled,
-			// 200 means termination is scheduled
-			if resp.StatusCode != 404 {
-				msgs <- "kill_game_server"
-				break
-			}
-		}
-	}()
-
-	// Spawn yet yet another watch proc
-	// This process waits for the game server to end
+	// Spawn watch proc which waits for the game server to end
 	go func() {
 		err = cmd.Wait()
 		log.Printf("game server process exited")
-		msgs <- "game_server_down"
+		smc.msgs <- msgGameServerDown
 	}()
 
-	// Spawn yet yet yet another proc to handle SIGTERM
+	// Spawn a SIGTERM handler
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGTERM)
 	go func() {
 		<-sigchan
-		msgs <- "kill_game_server"
+		smc.msgs <- msgInstanceTerminating
 	}()
 
+	// Spawn other watchers
+	go smc.idleWatcher()
+	go smc.uptimeWatcher()
+	go smc.terminationNotificationWatcher()
+
+	// Start the main loop
 	for {
-		msg := <-msgs
-		if msg == "kill_game_server" {
+		msg := <-smc.msgs
+		if msg == msgInstanceTerminating {
 			log.Printf("killing the game server")
 			cmd.Process.Kill()
 		}
-		if msg == "shutdown_cluster" {
+		if msg == msgShutdownCluster {
 			log.Printf("shutting down the cluster")
-			err := smc.ShutdownCluster()
+			err := smc.shutdownCluster()
 			if err != nil {
 				log.Fatal("cluster shutdown failed!: %s", err)
 			}
 			go func() {
-				msgs <- "kill_game_server"
+				smc.msgs <- msgInstanceTerminating
 			}()
 		}
-		if msg == "game_server_down" {
+		if msg == msgGameServerDown {
 			// If the game server ends, the instance dies
 
 			// Save data to S3
@@ -151,7 +93,7 @@ func Main() {
 			}
 
 			// Kill instance
-			smc.KillInstance()
+			smc.killInstance()
 
 			// Escape the loop
 			break

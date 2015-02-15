@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var AWS_RETRY = 3
@@ -18,6 +19,13 @@ var JAR_PATH_DIR = ""
 var JAR_PATH_PREFIX = "mcjar"
 var DATA_PATH_DIR = ""
 var DATA_PATH_PREFIX = "mcdata"
+var TERMINATION_TIME_URL = "http://169.254.169.254/latest/meta-data/spot/termination-time"
+
+const (
+	msgInstanceTerminating = iota
+	msgShutdownCluster
+	msgGameServerDown
+)
 
 // Defaults
 var DEFAULT_KILL_INSTANCE_MODE = "false"
@@ -44,6 +52,7 @@ type SpotMC struct {
 	idleWatchGraceTime int
 	idleWatchPath      string
 	autoScalingGroup   string
+	msgs               chan int
 }
 
 func NewSpotMC() (*SpotMC, error) {
@@ -218,7 +227,7 @@ func (smc *SpotMC) updateDDNS() {
 	}
 }
 
-func (smc *SpotMC) StartServer() (exec.Cmd, error) {
+func (smc *SpotMC) startServer() (exec.Cmd, error) {
 	args := []string{smc.JavaPath}
 	if smc.JavaArgs != "" {
 		extraArgs := strings.Split(smc.JavaArgs, " ")
@@ -239,8 +248,8 @@ func (smc *SpotMC) StartServer() (exec.Cmd, error) {
 	return cmd, err
 }
 
-func (smc *SpotMC) KillInstance() error {
-	log.Printf("KillInstance invoked")
+func (smc *SpotMC) killInstance() error {
+	log.Printf("killInstance invoked")
 	log.Printf("killInstanceMode: %s", smc.killInstanceMode)
 
 	if smc.killInstanceMode == "false" {
@@ -258,7 +267,7 @@ func (smc *SpotMC) KillInstance() error {
 	return nil
 }
 
-func (smc *SpotMC) ShutdownCluster() error {
+func (smc *SpotMC) shutdownCluster() error {
 	log.Printf("ShutDownCluster invoked")
 	log.Printf("autoScalingGroup: %s", smc.autoScalingGroup)
 	var err error
@@ -274,4 +283,61 @@ func (smc *SpotMC) ShutdownCluster() error {
 		}
 	}
 	return err
+}
+
+// uptimeWatcher() shutdowns the *cluster* when
+// the process uptime exceeds the predefined limit (smc.maxUptime).
+func (smc *SpotMC) uptimeWatcher() {
+	d := time.Duration(smc.maxUptime) * time.Second
+	time.Sleep(d)
+	log.Printf("uptime exceeded limit, shutdown the cluster")
+	smc.msgs <- msgShutdownCluster
+}
+
+// idleWatcher() shutdowns the *cluster* when
+// there's a long idle time (smc.maxIdleTime).
+func (smc *SpotMC) idleWatcher() {
+	grace := time.Duration(smc.idleWatchGraceTime) * time.Second
+	log.Printf("idle watcher starts after %.2f mins", grace.Minutes())
+	time.Sleep(grace) // Wait for a grace period
+	log.Printf("idle watcher starting")
+
+	fullPath := smc.dataDirPath + "/" + smc.idleWatchPath
+	d := time.Duration(smc.maxIdleTime) * time.Second
+	for true {
+		time.Sleep(d / 12)
+		fi, err := os.Stat(fullPath)
+		if err != nil {
+			log.Printf("os.Stat failed(%s): %s", fullPath, err)
+			continue
+		}
+		mtime := fi.ModTime()
+		log.Printf("time.Since(mtime): %.2f minutes (%s)",
+			time.Since(mtime).Minutes(), fullPath)
+		if time.Since(mtime) > d {
+			log.Printf("idle time exceeded limit, shutdown the cluster")
+			break
+		}
+	}
+	smc.msgs <- msgShutdownCluster
+}
+
+// terminationNotificationWatcher() accesses EC2 meta-data and
+// watches spot instance shutdown notification.
+// It sends a message to kill the game server before
+// the actual shutdown process starts
+func (smc *SpotMC) terminationNotificationWatcher() {
+	d := time.Duration(10) * time.Second
+	for {
+		time.Sleep(d)
+		resp, err := http.Get(TERMINATION_TIME_URL)
+		resp.Body.Close()
+		log.Printf("termination time url: %s (err:%s)", resp.Status, err)
+		// 404 means termination is not scheduled,
+		// 200 means termination is scheduled
+		if resp.StatusCode != 404 {
+			smc.msgs <- msgInstanceTerminating
+			break
+		}
+	}
 }
