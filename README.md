@@ -24,23 +24,23 @@ What You Have to Prepare
 =========================
 - Access to AWS Management Console. You are going to setup an AutoScaling group. Game state will be saved in S3.
 - Game server jar file (like craftbukkit.jar/minecraft_server.jar) and its eula.txt (for minecraft). It's not included in this software.
+- Recommended: Dynamic DNS(DDNS) update URL. Your server will get a different IP address everytime it launches, so you should want a way to fix its host name. DDNS is good for that purpose. DDNS providers often provides an "update URL" to let the server set the global IP of itself. SpotMC has an ability to make use of that URL. Take note of that URL.
 
 Set Up Memo
 ============
 1. Put the game server jar file and eula file on S3
 2. Create an IAM role which allows access to S3 and EC2 (narrow down the grant as you like)
-3. Create an Auto Scaling Configuration
-    - Assign an IAM role which you created at step 2
-    - Specify user-data at the "3. Configure details" "Advanced Details" as the sample below
-    - Don't forget to open necessary incoming TCP ports for the game server (25535 for minecraft)
-4. Create an Auto Scaling Group using the Configuration you created at step 3
-    - Set the number of servers to 0
-    - Edit the Auto Scaling Group and set the number of instances to Min: 0, Max:1, Desired: 1
-    - When you want to shut down the instance, set Desired to 0 (or it should be automatically shut down after a while if no one is logging in to the game)
+3. Choose "Create Stack" in  CloudFormation control panel, and load `cfm.json` as a template
+4. Fill in the parameters and create a stack, wait until it completes... you're done!
+5. Edit the Auto Scaling Group and set the number of instances of Desired to 1, to launch a server, and wait until the server starts
+6. When you want to shut down the instance, set Desired to 0 (or it should be automatically shut down after a while if no one is logging in to the game)
 
 
-Sample User Data
-==================
+Manual Set Up
+==============
+
+Sample User Data 
+-------------------
 ```
 #!/bin/bash
 export SPOTMC_DDNS_UPDATE_URL='http://XXXXXXXX:XXXXXXX@dynupdate.no-ip.com/nic/update?hostname=XXXXXXXX.no-ip.org'
@@ -70,7 +70,7 @@ nohup ./spotmc &
 
 
 Parameters
-===========
+------------
 
 spotmc command uses env vars for configuration
 
