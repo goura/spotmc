@@ -3,6 +3,6 @@ test:
     - go get github.com/goura/spotmc/spotmc
     - cp /home/ubuntu/.go_project/bin/spotmc ${CIRCLE_ARTIFACTS}
     - go get github.com/aktau/github-release
-    - github-release delete --user goura --repo spotmc --tag ${CIRCLE_BRANCH}-latest
-    - github-release release --user goura --repo spotmc --tag ${CIRCLE_BRANCH}-latest --name ${CIRCLE_BRANCH} --description "Auto generated release" --pre-release
-    - github-release upload --user goura --repo spotmc --tag ${CIRCLE_BRANCH}-latest --name "spotmc" --file /home/ubuntu/.go_project/bin/spotmc
+    - github-release delete --user goura --repo spotmc --tag unstable-latest
+    - github-release release --user goura --repo spotmc --tag unstable-latest --name unstable-latest --description "Auto generated artifact for build:${CIRCLE_BUILD_NUM} branch:${CIRCLE_BRANCH}" --pre-release
+    - github-release upload --user goura --repo spotmc --tag unstable-latest --name "spotmc" --file /home/ubuntu/.go_project/bin/spotmc
