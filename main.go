@@ -52,7 +52,7 @@ func Main() {
 	// Spawn watch proc
 	// This process shutdowns the *cluster* when there's a long idle time.
 	go func() {
-		grace := time.Minute * 10
+		grace := time.Duration(smc.idleWatchGraceTime) * time.Second
 		log.Printf("idle watcher starts after %.2f mins", grace.Minutes())
 		time.Sleep(grace) // Wait for a grace period
 		log.Printf("idle watcher starting")
@@ -119,43 +119,42 @@ func Main() {
 	signal.Notify(sigchan, syscall.SIGTERM)
 	go func() {
 		<-sigchan
-		msgs <- "game_server_down"
+		msgs <- "kill_game_server"
 	}()
 
-	loop := true
-	for loop {
-		select {
-		case msg := <-msgs:
-			if msg == "kill_game_server" {
-				log.Printf("killing the game server")
-				cmd.Process.Kill()
+	for {
+		msg := <-msgs
+		if msg == "kill_game_server" {
+			log.Printf("killing the game server")
+			cmd.Process.Kill()
+		}
+		if msg == "shutdown_cluster" {
+			log.Printf("shutting down the cluster")
+			err := smc.ShutdownCluster()
+			if err != nil {
+				log.Fatal("cluster shutdown failed!: %s", err)
 			}
-			if msg == "shutdown_cluster" {
-				log.Printf("shutting down the cluster")
-				err := smc.ShutdownCluster()
-				if err != nil {
-					log.Fatal("cluster shutdown failed!: %s", err)
-				}
+			go func() {
 				msgs <- "kill_game_server"
+			}()
+		}
+		if msg == "game_server_down" {
+			// If the game server ends, the instance dies
+
+			// Save data to S3
+			log.Print("saving data to S3 started")
+			err := smc.putDataDir()
+			if err != nil {
+				log.Printf("saving data to S3 failed: %s", err)
+			} else {
+				log.Printf("saving data to S3 done")
 			}
-			if msg == "game_server_down" {
-				// If the game server ends, the instance dies
 
-				// Save data to S3
-				log.Print("saving data to S3 started")
-				err := smc.putDataDir()
-				if err != nil {
-					log.Printf("saving data to S3 failed: %s", err)
-				} else {
-					log.Printf("saving data to S3 done")
-				}
+			// Kill instance
+			smc.KillInstance()
 
-				// Kill instance
-				smc.KillInstance()
-
-				// Escape the loop
-				loop = false
-			}
+			// Escape the loop
+			break
 		}
 	}
 }

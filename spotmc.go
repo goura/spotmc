@@ -26,22 +26,24 @@ var DEFAULT_REGION = "ap-northeast-1"
 var DEFAULT_MAX_UPTIME = 43200
 var DEFAULT_MAX_IDLE_TIME = 14400
 var DEFAULT_IDLE_WATCH_PATH = "world/playerdata"
+var DEFAULT_IDLE_WATCH_GRACE_TIME = 600
 
 type SpotMC struct {
-	JarFileURL       string
-	EULAFileURL      string
-	DataFileURL      string
-	JavaPath         string
-	JavaArgs         string
-	serverPath       string
-	dataDirPath      string
-	ddnsURL          string
-	killInstanceMode string
-	maxIdleTime      int
-	maxUptime        int
-	shutdownCommand  string
-	idleWatchPath    string
-	autoScalingGroup string
+	JarFileURL         string
+	EULAFileURL        string
+	DataFileURL        string
+	JavaPath           string
+	JavaArgs           string
+	serverPath         string
+	dataDirPath        string
+	ddnsURL            string
+	killInstanceMode   string
+	maxIdleTime        int
+	maxUptime          int
+	shutdownCommand    string
+	idleWatchGraceTime int
+	idleWatchPath      string
+	autoScalingGroup   string
 }
 
 func NewSpotMC() (*SpotMC, error) {
@@ -97,6 +99,16 @@ func NewSpotMC() (*SpotMC, error) {
 		idleWatchPath = s
 	}
 
+	// Idle watch grace time
+	idleWatchGraceTime := DEFAULT_IDLE_WATCH_GRACE_TIME
+	s = os.Getenv("SPOTMC_IDLE_WATCH_GRACE_TIME")
+	if s != "" {
+		i, err := strconv.Atoi(s)
+		if err == nil {
+			idleWatchGraceTime = i
+		}
+	}
+
 	// DDNS Update URL
 	ddnsURL := os.Getenv("SPOTMC_DDNS_UPDATE_URL")
 
@@ -104,18 +116,19 @@ func NewSpotMC() (*SpotMC, error) {
 	autoScalingGroup := os.Getenv("SPOTMC_AUTOSCALING_GROUP")
 
 	smc := &SpotMC{
-		JarFileURL:       os.Getenv("SPOTMC_SERVER_JAR_URL"),
-		EULAFileURL:      os.Getenv("SPOTMC_SERVER_EULA_URL"),
-		DataFileURL:      os.Getenv("SPOTMC_DATA_URL"),
-		JavaPath:         os.Getenv("SPOTMC_JAVA_PATH"),
-		JavaArgs:         os.Getenv("SPOTMC_JAVA_ARGS"),
-		ddnsURL:          ddnsURL,
-		killInstanceMode: killInstanceMode,
-		maxIdleTime:      maxIdleTime,
-		maxUptime:        maxUptime,
-		shutdownCommand:  shutdownCommand,
-		idleWatchPath:    idleWatchPath,
-		autoScalingGroup: autoScalingGroup,
+		JarFileURL:         os.Getenv("SPOTMC_SERVER_JAR_URL"),
+		EULAFileURL:        os.Getenv("SPOTMC_SERVER_EULA_URL"),
+		DataFileURL:        os.Getenv("SPOTMC_DATA_URL"),
+		JavaPath:           os.Getenv("SPOTMC_JAVA_PATH"),
+		JavaArgs:           os.Getenv("SPOTMC_JAVA_ARGS"),
+		ddnsURL:            ddnsURL,
+		killInstanceMode:   killInstanceMode,
+		maxIdleTime:        maxIdleTime,
+		maxUptime:          maxUptime,
+		shutdownCommand:    shutdownCommand,
+		idleWatchGraceTime: idleWatchGraceTime,
+		idleWatchPath:      idleWatchPath,
+		autoScalingGroup:   autoScalingGroup,
 	}
 
 	return smc, nil
