@@ -61,7 +61,7 @@
         },
         "DDNSUpdateURL": {
             "Type": "String",
-            "AllowedPattern": "^https?://.*",
+            "AllowedPattern": "(^$|^https?://.*)",
             "Description": "If this parameter is not empty, the server will try to register itself to a dynamic DDNS by accessing this URL."
         },
         "SpotMCDownloadURL": {
@@ -73,6 +73,13 @@
         "AZ": {
             "Type": "CommaDelimitedList",
             "Description": "Comma separated list of the AZ you want to launch the instance. Leave it blank to specify all AZs."
+        },
+        "VPCID": {
+            "Type": "AWS::EC2::VPC::Id",
+            "Description": "Select your default VPC please"
+        },
+        "SSHKeyName": {
+            "Type": "AWS::EC2::KeyPair::KeyName"
         }
     },
 
@@ -119,6 +126,7 @@
             },
             "Properties": {
                 "SpotPrice": {"Ref": "BiddingPrice"},
+                "KeyName": {"Ref": "SSHKeyName"},
                 "IamInstanceProfile": {"Ref": "IamInstanceProfile"},
                 "ImageId": {"Fn::FindInMap": [
                     "AWSRegionArch2AMI", {"Ref": "AWS::Region"}, "HVM64"
@@ -181,16 +189,26 @@
         "InstanceSecurityGroup" : {
             "Type" : "AWS::EC2::SecurityGroup",
             "Properties" : {
-                "GroupDescription" : "Enable 25565",
-                "SecurityGroupIngress" : [{
-                    "CidrIp": "0.0.0.0/0",
-                    "IpProtocol" : "tcp",
-                    "FromPort" : "25565",
-                    "ToPort" : "25565"
-                }]
+                "GroupDescription" : "Allow 22 and 25565",
+                "SecurityGroupIngress" : [
+                    {
+                        "CidrIp": "0.0.0.0/0",
+                        "IpProtocol" : "tcp",
+                        "FromPort" : "25565",
+                        "ToPort" : "25565"
+                    },
+                    {
+                        "CidrIp": "0.0.0.0/0",
+                        "IpProtocol" : "tcp",
+                        "FromPort" : "22",
+                        "ToPort" : "22"
+                    }
+                ],
+                "VpcId": {"Ref": "VPCID"}
             }
         }
     },
+
     "Outputs": {
         "AutoScalingGroupName": {
             "Value": {"Ref": "SpotMCAutoScalingGroup"}
