@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/awslabs/aws-sdk-go/aws"
-	"github.com/awslabs/aws-sdk-go/gen/autoscaling"
-	"github.com/awslabs/aws-sdk-go/gen/s3"
+	"github.com/awslabs/aws-sdk-go/service/autoscaling"
+	"github.com/awslabs/aws-sdk-go/service/s3"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -17,13 +17,12 @@ import (
 var INSTANCE_ID_URL = "http://169.254.169.254/latest/meta-data/instance-id"
 
 func s3Client() *s3.S3 {
-	creds := aws.DetectCreds("", "", "")
 	region := os.Getenv("SPOTMC_AWS_REGION")
 	if region == "" {
 		region = DEFAULT_REGION
 	}
 
-	s3cli := s3.New(creds, region, nil)
+	s3cli := s3.New(&aws.Config{Region: region})
 	return s3cli
 }
 
@@ -61,7 +60,7 @@ func S3Put(s3URLStr, targetPath string) error {
 
 	// Send request to S3
 	s3cli := s3Client()
-	req := s3.PutObjectRequest{
+	req := s3.PutObjectInput{
 		Bucket:        aws.String(bucket),
 		Key:           aws.String(key),
 		Body:          f,
@@ -85,7 +84,7 @@ func S3Get(s3URLStr, targetPath string) error {
 
 	// Send request to S3
 	s3cli := s3Client()
-	req := s3.GetObjectRequest{
+	req := s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	}
@@ -115,13 +114,12 @@ func S3Get(s3URLStr, targetPath string) error {
 }
 
 func autoScalingClient() *autoscaling.AutoScaling {
-	creds := aws.DetectCreds("", "", "")
 	region := os.Getenv("SPOTMC_AWS_REGION")
 	if region == "" {
 		region = DEFAULT_REGION
 	}
 
-	asCli := autoscaling.New(creds, region, nil)
+	asCli := autoscaling.New(&aws.Config{Region: region})
 	return asCli
 }
 
@@ -142,7 +140,7 @@ func TerminateInstanceInAutoScalingGroup() error {
 	instanceID := string(buf)
 
 	// Terminate the instance and decrement desired capacity
-	req := autoscaling.TerminateInstanceInAutoScalingGroupType{
+	req := autoscaling.TerminateInstanceInAutoScalingGroupInput{
 		InstanceID:                     aws.String(instanceID),
 		ShouldDecrementDesiredCapacity: aws.Boolean(true),
 	}

@@ -3,7 +3,7 @@ package spotmc
 import (
 	"fmt"
 	"github.com/awslabs/aws-sdk-go/aws"
-	"github.com/awslabs/aws-sdk-go/gen/s3"
+	"github.com/awslabs/aws-sdk-go/service/s3"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -19,7 +19,7 @@ func TestPutGet(t *testing.T) {
 	s3cli := s3Client()
 	cbConf := s3.CreateBucketConfiguration{
 		LocationConstraint: aws.String("us-west-2")}
-	cbReq := s3.CreateBucketRequest{
+	cbReq := s3.CreateBucketInput{
 		Bucket: aws.String(bucketName),
 		CreateBucketConfiguration: &cbConf,
 	}
@@ -65,7 +65,7 @@ func TestPutGet(t *testing.T) {
 	}
 
 	// Delete object from S3
-	doReq := s3.DeleteObjectRequest{
+	doReq := s3.DeleteObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String("foo/bar.txt"),
 	}
@@ -75,8 +75,8 @@ func TestPutGet(t *testing.T) {
 	}
 
 	// Delete test bucket
-	dbReq := s3.DeleteBucketRequest{Bucket: aws.String(bucketName)}
-	err = s3cli.DeleteBucket(&dbReq)
+	dbReq := s3.DeleteBucketInput{Bucket: aws.String(bucketName)}
+	_, err = s3cli.DeleteBucket(&dbReq)
 	if err != nil {
 		t.Fatalf("DeleteBucket failed: %s", bucketName)
 	}
